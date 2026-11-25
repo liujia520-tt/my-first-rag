@@ -9,6 +9,29 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_core.messages import HumanMessage, AIMessage
 
+# ===== 密码保护功能 =====
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == "rag2024":  # 👈 面试时你可以改成面试官好记的密码
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.text_input("请输入访问密码（演示专用）", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input("请输入访问密码", type="password", on_change=password_entered, key="password")
+        st.error("😕 密码错误，请查看简历上的演示密码")
+        return False
+    else:
+        return True
+
+if not check_password():
+    st.stop()
+# ========================
+
 st.set_page_config(page_title="我的RAG助手 4.0", page_icon="🚀")
 st.title("🚀 我的专属文档问答助手 (全能版)")
 
@@ -20,7 +43,10 @@ with st.sidebar:
     st.header("文档上传与管理")
     # 核心升级 1：支持多文件上传
     uploaded_files = st.file_uploader("请上传文档（可多选）", type=["pdf", "txt", "docx"], accept_multiple_files=True)
-    api_key = st.text_input("DeepSeek API Key", type="password", value=ds_key)
+    
+    # 👇【关键修改点】这里把 value=ds_key 删掉了，改成 value=""
+    # 这意味着访客必须自己填 DeepSeek Key 才能用，保护了你的余额！
+    api_key = st.text_input("请输入你的 DeepSeek API Key 以体验", type="password", value="")
     
     if st.button("🗑️ 清空当前对话记录"):
         st.session_state.messages = []
@@ -53,7 +79,7 @@ if uploaded_files and api_key and sf_key:
             splits = text_splitter.split_documents(docs)
             all_splits.extend(splits)
 
-        # 建立向量检索
+        # 建立向量检索（这里用的依然是你的 sf_key，因为硅基流动 BGE-M3 免费额度极多，且有密码保护）
         my_embedding = OpenAIEmbeddings(
             api_key=sf_key, 
             base_url="https://api.siliconflow.cn/v1", 
@@ -130,4 +156,7 @@ if uploaded_files and api_key and sf_key:
             
         st.session_state.messages.append({"role": "assistant", "content": response_text})
 else:
-    st.info("👈 请在左侧上传文档。确保后台已配置好 API Key。")
+    if not uploaded_files:
+        st.info("👈 请在左侧上传文档。")
+    elif not api_key:
+        st.info("👈 请在左侧输入你的 DeepSeek API Key。")
